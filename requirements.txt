@@ -1,0 +1,6 @@
+Flask
+pandas
+requests
+markdown2
+joblib
+prophet
