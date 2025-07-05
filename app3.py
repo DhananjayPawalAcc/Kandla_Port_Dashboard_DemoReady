@@ -4,6 +4,7 @@ import joblib
 import requests
 import markdown2
 import json
+from datetime import datetime, timedelta
 
 app= Flask(__name__)
 
@@ -25,9 +26,9 @@ def load_berth_data():
     df.columns=df.columns.str.strip()
     df=df[df['PORT_NAME'].str.strip().str.upper()=='KANDLA']
 
-    # Remove KAN3 berth
-    df['BERTH_NAME']=df['BERTH_NAME'].astype(str).str.strip()
-    df=df[df['BERTH_NAME']!='KAN3']
+    # # Remove KAN3 berth
+    # df['BERTH_NAME']=df['BERTH_NAME'].astype(str).str.strip()
+    # df=df[df['BERTH_NAME']!='KAN3']
     # Parse both timestamps
     if 'DOCK_TIMESTAMP_UTC' in df.columns:
         df['DOCK_TIMESTAMP_UTC'] = pd.to_datetime(df['DOCK_TIMESTAMP_UTC'], errors='coerce')
@@ -38,7 +39,7 @@ def load_berth_data():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index4.html')
 
 
 
@@ -233,7 +234,7 @@ def monthly_berth_usage():
     grouped = df.groupby(['DOCK_MONTH', 'BERTH_NAME'])['SHIP_ID'].count().unstack().fillna(0)
 
     # Find top 5 berths by total ship count
-    top_10_berths = grouped.sum(axis=0).sort_values(ascending=False).head(10).index.tolist()
+    top_10_berths = grouped.sum(axis=0).sort_values(ascending=False).index.tolist()
 
     # Filter the grouped DataFrame to include only top 5 berths
     grouped_top5 = grouped[top_10_berths]
@@ -322,9 +323,78 @@ def top_3_ship_types_by_berth():
 # ************************************************* BERTH-CHART APIs END *************************************************
 
 
-#  ************************************************* OLAMA-LLAMA3.1:70b APIs START*************************************************
+# ************************************************* LIVE DATA APIs START *************************************************
 
-# # API endpoint to generate insights based on port or berth data
+def load_last_48_hours_data():
+    df=pd.read_csv("/home/dhanjay/Documents/demo-ready-kandla-port-dashboard/Kandla_Port_Dashboard_DemoReady/response_berthcall_269_kandla.csv",on_bad_lines='skip')
+    df.columns = df.columns.str.strip()
+    df=df[df['PORT_NAME'] == 'KANDLA']
+    return df
+
+@app.route('/api/live_data_summary')
+def live_data_summary():
+    df = load_last_48_hours_data()
+    df['DOCK_TIMESTAMP_UTC'] = pd.to_datetime(df['DOCK_TIMESTAMP_UTC'], errors='coerce')
+
+    max_date = df['DOCK_TIMESTAMP_UTC'].max()  # Keep as datetime
+    min_date = max_date - timedelta(hours=48)
+
+    df_recent = df[(df['DOCK_TIMESTAMP_UTC'] >= min_date) & (df['DOCK_TIMESTAMP_UTC'] <= max_date)]
+
+    ship_cnt_last_48_hrs = df_recent['SHIP_ID'].count()
+    port_utilisation_last_48_hrs= (ship_cnt_last_48_hrs/144)*100
+
+    return jsonify({
+        "ship_count": int(ship_cnt_last_48_hrs),
+        "port_utilisation_last_48_hrs": round(port_utilisation_last_48_hrs, 2)
+    })
+
+@app.route('/api/berth_status_summary_live_data')
+def berth_status_summary():
+    df = load_last_48_hours_data()
+    df['DOCK_TIMESTAMP_UTC'] = pd.to_datetime(df['DOCK_TIMESTAMP_UTC'], errors='coerce')
+
+    now = df['DOCK_TIMESTAMP_UTC'].max()  # Get the latest timestamp in the dataset
+    one_hour_ago = now - timedelta(hours=1)
+
+    # Filter for ships docked in the last 1 hour
+    df_last_1hr = df[df['DOCK_TIMESTAMP_UTC'] >= one_hour_ago]
+
+    # Berths that have activity in the last 1 hour = busy
+    busy_berths = df_last_1hr['BERTH_NAME'].dropna().unique().tolist()
+
+    # All berths from full dataset
+    all_berths = df['BERTH_NAME'].dropna().unique().tolist() 
+
+    # Idle berths = not in busy list
+    idle_berths = list(set(all_berths) - set(busy_berths))
+
+    # Latest ship per busy berth
+    berth_ship_info = (
+        df_last_1hr.sort_values('DOCK_TIMESTAMP_UTC')
+        .groupby('BERTH_NAME')
+        .last()[['SHIP_ID','SHIPNAME', 'TYPE_NAME', 'DOCK_TIMESTAMP_UTC']]
+        .reset_index()
+        .to_dict(orient='records')
+    )
+
+    return jsonify({
+        "busy_berths": busy_berths,
+        "idle_berths": idle_berths,
+        "berth_ship_info": berth_ship_info
+    })
+
+
+
+
+
+
+
+
+# ************************************************* LIVE DATA APIs END ***************************************************
+
+
+# API endpoint to generate insights based on port or berth data
 # @app.route('/api/generate_insight')
 # def generate_insight():
 #     section = request.args.get('section', 'port')  # default to port
@@ -419,38 +489,36 @@ def top_3_ship_types_by_berth():
 # """
 
 #         # Call LLM API
-#         response = requests.post(
-#             "http://192.168.10.41:11434/api/chat",
-            
-#             #   "http://localhost:11434/api/chat",
+#         def generate():
+#             with requests.post(
+#                 "http://192.168.10.41:11434/api/chat",
+#                 json={
+#                     "model": "llama3.3:70b",
+#                     "messages": [{"role": "user", "content": prompt}],
+#                     "stream": True
+#                 },
+#                 headers={"Content-Type": "application/json"},
+#                 stream=True,
+#             ) as r:
+#                 for line in r.iter_lines():
+#                     if line:
+#                         try:
+#                             json_data = json.loads(line.decode('utf-8').strip())
+#                             content_piece = json_data.get("message", {}).get("content", "")
+#                             if content_piece:
+#                                 yield content_piece
+#                         except Exception:
+#                             continue
 
-#             json={
-#                 # "model": "gemma3:4b",
-#                 "model": "llama3.3:70b",
-#                 "messages": [{"role": "user", "content": prompt}],
-#                 # "prompt": prompt,
-#                 "stream": False
-#             },
-#             headers={"Content-Type": "application/json"}
-#         )
-#         response.raise_for_status()
-#         result = response.json()
-#         # content = result.get("message", {}).get("content", "No insight generated.")
-
-#         # return jsonify({"insight": content})
-#         markdown_text = result.get("message", {}).get("content", "No insight generated.")
-#         html_content = markdown2.markdown(markdown_text)
-
-#         return jsonify({"insight": html_content})
+#         return Response(stream_with_context(generate()), content_type='text/plain')
 
 #     except Exception as e:
-#         return jsonify({"insight": f"Error generating insight: {str(e)}"})
+#         return Response(f"[ERROR] {str(e)}", content_type='text/plain')
 
 
-# # ************************************************* OLAMA-LLAMA3.1:70b APIs END *************************************************
+# ************************************************* OLAMA-LLAMA3.1:70b APIs END *************************************************
 
 
-# API endpoint to generate insights based on port or berth data
 @app.route('/api/generate_insight')
 def generate_insight():
     section = request.args.get('section', 'port')  # default to port
@@ -499,6 +567,46 @@ Your task is to generate clear, helpful, and human-friendly insights from the fo
 
 Output:
 """
+        elif section == 'liveData':
+            # 🎯 NEW SECTION: Generate insight from live ship movement (last 48 hrs)
+            live_summary = requests.get('http://localhost:5001/api/live_data_summary').json()
+            berth_status = requests.get('http://localhost:5001/api/berth_status_summary_live_data').json()
+
+            busy_berths = berth_status['busy_berths']
+            idle_berths = berth_status['idle_berths']
+            berth_ship_info = berth_status['berth_ship_info']
+
+            prompt = f"""
+You are a senior data analyst monitoring **live ship operations** at Kandla Port over the last 48 hours.
+
+Your task is to generate insights for the operations team that summarize:
+- Current activity 📡
+- Berth availability 🛳️
+- Busy vs idle berths ⚓
+- Ship types currently docked
+
+📊 **Live Summary**:
+- Ships in last 48 hrs: {live_summary['ship_count']}
+- Port Utilization: {live_summary['port_utilisation_last_48_hrs']}%
+- Busy Berths: {busy_berths}
+- Idle Berths (idle > 1 hr): {idle_berths}
+- Ships at Busy Berths:
+{[
+    f"{item['BERTH_NAME']} - {item['SHIPNAME']} ({item['TYPE_NAME']})"
+    for item in berth_ship_info
+]}
+
+📝 **Instructions**:
+    - Format insights as bullet points (•) using `\n`.
+    - Use simple, clear, non-technical language.
+    🔧 **Finish with 3–4 smart suggestions** to improve. Write them in bullet points on new lines (`\n`).
+
+
+Output:
+
+"""
+            
+
 
         else:
             # Generate port-level insight
@@ -547,9 +655,11 @@ Output:
         # Call LLM API
         def generate():
             with requests.post(
-                "http://192.168.10.41:11434/api/chat",
+                # "http://192.168.10.41:11434/api/chat",
+                "http://localhost:11434/api/chat",
                 json={
-                    "model": "llama3.3:70b",
+                    # "model": "llama3.3:70b",
+                    "model":"gemma3:4b",
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": True
                 },
@@ -570,10 +680,6 @@ Output:
 
     except Exception as e:
         return Response(f"[ERROR] {str(e)}", content_type='text/plain')
-
-
-# ************************************************* OLAMA-LLAMA3.1:70b APIs END *************************************************
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

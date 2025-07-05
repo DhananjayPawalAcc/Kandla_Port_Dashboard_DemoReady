@@ -242,11 +242,13 @@
       
       <div id="berthCharts" style="display: none;">
          <!-- Title -->
-         <div>
-          <label><strong>Include KAN3 Berth?</strong></label><br>
-          <label><input type="radio" name="kan3Toggle" value="yes" checked> Yes</label>
-          <label><input type="radio" name="kan3Toggle" value="no"> No</label>
-        </div>
+         <!-- Toggle to include/exclude KAN3 berth -->
+            <div class="mb-3">
+                <label><strong>Include KAN3 Berth?</strong></label><br>
+                <label><input type="radio" name="kan3Toggle" value="yes" checked> Yes</label>
+                <label><input type="radio" name="kan3Toggle" value="no"> No</label>
+            </div>
+  
         
         <div class="row">
           <div class="col-12 mb-3">
@@ -443,7 +445,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
 
 <script>
   // Update last updated time
@@ -648,168 +649,211 @@
       document.getElementById('portUtilization').textContent = data.port_utilization;
     })
     .catch(error => console.error('Error fetching summary stats:', error));
+    
+   
 
-   // Total Berth Usage Chart
-    fetch('/api/total_berth_usage')
+
+
+
+
+
+let chartInstance = null;
+let totalBerthChart = null;
+let avgBerthChart = null;
+let berthDowntimeChart = null;
+
+// 🌐 Get the selected KAN3 radio value
+function getKAN3Toggle() {
+  return document.querySelector('input[name="kan3Toggle"]:checked').value;
+}
+
+// 🚀 Run all berth-related fetches
+function updateAllBerthCharts() {
+  const includeKAN3 = getKAN3Toggle();
+  fetchBerthUtilizationCards(includeKAN3);
+  fetchTotalBerthUsage(includeKAN3);
+  fetchMonthlyUsageChart(includeKAN3);
+  fetchAvgBerthDuration(includeKAN3);
+  fetchBerthDowntime(includeKAN3);
+  populateBerthDropdown(includeKAN3);
+}
+
+// 📌 Attach listeners to radio buttons
+document.querySelectorAll('input[name="kan3Toggle"]').forEach(radio => {
+  radio.addEventListener('change', updateAllBerthCharts);
+});
+
+// 🔁 Call on page load
+document.addEventListener("DOMContentLoaded", () => {
+  updateAllBerthCharts();
+});
+
+// ✅✅ toggleSection logic to switch Port / Berth view
+let currentSection = 'port';
+
+function toggleSection(type) {
+  const port = document.getElementById('portCharts');
+  const berth = document.getElementById('berthCharts');
+
+  const insightSidebar = document.getElementById('insight-sidebar');
+  const portInsight = document.getElementById('port-insight-content');
+  const berthInsight = document.getElementById('berth-insight-content');
+  const activeSectionSpan = document.getElementById('active-section');
+
+  if (type === 'port') {
+    port.style.display = 'block';
+    berth.style.display = 'none';
+    portInsight.style.display = 'block';
+    berthInsight.style.display = 'none';
+    if (activeSectionSpan) activeSectionSpan.innerText = 'Port';
+    currentSection = 'port';
+  } else if (type === 'berth') {
+    port.style.display = 'none';
+    berth.style.display = 'block';
+    portInsight.style.display = 'none';
+    berthInsight.style.display = 'block';
+    if (activeSectionSpan) activeSectionSpan.innerText = 'Berth';
+    currentSection = 'berth';
+  }
+
+  insightSidebar.style.display = 'block'; // show always
+}
+
+// ---------------------------------------------
+// BERTH CHART FUNCTIONS BELOW
+// ---------------------------------------------
+
+function fetchTotalBerthUsage(includeKAN3) {
+  fetch(`/api/total_berth_usage?includeKAN3=${includeKAN3}`)
     .then(response => response.json())
     .then(data => {
-        const ctx = document.getElementById('totalBerthChart').getContext('2d');
-        new Chart(ctx, {
+      const ctx = document.getElementById('totalBerthChart').getContext('2d');
+      
+      // ✅ Destroy existing chart
+      if (totalBerthChart) totalBerthChart.destroy();
+
+      totalBerthChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: data.labels,
-            datasets: [{
+          labels: data.labels,
+          datasets: [{
             label: 'Berth Usage',
             data: data.values,
             backgroundColor: 'rgba(231, 74, 59, 0.6)',
             borderColor: 'rgba(231, 74, 59, 1)',
             borderWidth: 1
-            }]
+          }]
         },
         options: {
-            responsive: true,
-            indexAxis: 'y',
-            plugins: {
-            legend: { display: false }
-            },
-            scales: {
-            x: { beginAtZero: true }
-            }
+          responsive: true,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
         }
-        });
+      });
     });
-
-  // Berth Utilization Logic for cards
-  document.addEventListener("DOMContentLoaded", function () {
-    fetch('/api/berth_utilization')
-      .then(response => response.json())
-      .then(data => {
-        const container = document.getElementById('berthUtilizationContainer');
-        container.innerHTML = ''; // Clear existing content
-
-        // Array of colors (rotate if more than 8)
-        const borderColors = [
-          "#e74a3b",  // danger (red)
-          "#36b9cc",  // info (blue)
-          "#f6c23e",  // warning (yellow)
-          "#1cc88a",  // success (green)
-          "#4e73df",  // primary (blue-violet)
-          "#fd7e14",  // orange
-          "#20c997",  // teal
-          "#6610f2",   // indigo
-          "#1cc88a",  // success (green)
-          "#6f42c1"   // purple
+}
 
 
-        ];
+function fetchBerthUtilizationCards(includeKAN3) {
+  fetch(`/api/berth_utilization?includeKAN3=${includeKAN3}`)
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('berthUtilizationContainer');
+      container.innerHTML = '';
 
-        data.forEach((item, index) => {
-          const color = borderColors[index % borderColors.length]; // rotate colors
-          const card = `
-            <div class="col-xl-3 col-md-6 mb-4">
-              <div class="card border-0 shadow-sm stat-card h-100" style="border-left: 5px solid ${color};">
-                <div class="card-body">
-                  <div class="row align-items-center">
-                    <div class="col mr-2">
-                      <div class="text-xs font-weight-bold text-uppercase mb-1" style="color: ${color};">
-                        ${item["BERTH_NAME"]}
-                      </div>
-                      <div class="h5 mb-0 font-weight-bold text-gray-800">${item["Utilization (%)"]}%</div>
+      const borderColors = ["#e74a3b", "#36b9cc", "#f6c23e", "#1cc88a", "#4e73df", "#fd7e14", "#20c997", "#6610f2", "#1cc88a", "#6f42c1"];
+
+      data.forEach((item, index) => {
+        const color = borderColors[index % borderColors.length];
+        const card = `
+          <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-0 shadow-sm stat-card h-100" style="border-left: 5px solid ${color};">
+              <div class="card-body">
+                <div class="row align-items-center">
+                  <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-uppercase mb-1" style="color: ${color};">
+                      ${item["BERTH_NAME"]}
                     </div>
-                    <div class="col-auto">
-                      <i class="bi bi-percent fa-2x text-gray-300"></i>
-                    </div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800">${item["Utilization (%)"]}%</div>
+                  </div>
+                  <div class="col-auto">
+                    <i class="bi bi-percent fa-2x text-gray-300"></i>
                   </div>
                 </div>
               </div>
             </div>
-          `;
-          container.innerHTML += card;
-        });
-      })
-      .catch(error => {
-        console.error('Error fetching berth utilization:', error);
+          </div>`;
+        container.innerHTML += card;
       });
-  });
-
-
-
-// Monthly Berth Usage Trend Chart
-let chartInstance = null;
-
-fetch('/api/monthly_berth_usage')
-  .then(response => response.json())
-  .then(data => {
-    const ctx = document.getElementById('monthlyBerthChart').getContext('2d');
-
-    // Populate the dropdown
-    const berthSelector = document.getElementById('berthSelector');
-    berthSelector.innerHTML = ''; // clear existing options
-
-    data.berths.forEach(berth => {
-      const option = document.createElement('option');
-      option.value = berth;
-      option.textContent = berth;
-      berthSelector.appendChild(option);
     });
+}
 
-    // Draw chart for the first berth by default
-    const initialBerth = data.berths[0];
-    drawChart(initialBerth, data);
 
-    // Redraw chart on selection change
-    berthSelector.addEventListener('change', () => {
-      const selectedBerth = berthSelector.value;
-      drawChart(selectedBerth, data);
-    });
+function fetchMonthlyUsageChart(includeKAN3) {
+  fetch(`/api/monthly_berth_usage?includeKAN3=${includeKAN3}`)
+    .then(response => response.json())
+    .then(data => {
+      const ctx = document.getElementById('monthlyBerthChart').getContext('2d');
+      const berthSelector = document.getElementById('berthSelector');
+      berthSelector.innerHTML = '';
 
-    function drawChart(selectedBerth, data) {
-      const berthIndex = data.berths.indexOf(selectedBerth);
-      const dataset = {
-        label: selectedBerth,
-        data: data.values.map(row => row[berthIndex]),
-        fill: false,
-        borderColor: `hsl(${(berthIndex * 50) % 360}, 70%, 50%)`,
-        backgroundColor: `hsl(${(berthIndex * 50) % 360}, 70%, 70%)`,
-        tension: 0.4
-      };
+      data.berths.forEach(berth => {
+        const option = document.createElement('option');
+        option.value = berth;
+        option.textContent = berth;
+        berthSelector.appendChild(option);
+      });
 
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
+      const initialBerth = data.berths[0];
+      drawChart(initialBerth, data);
 
-      chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: data.months,
-          datasets: [dataset]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'bottom' }
-          },
-          scales: {
-            y: { beginAtZero: true }
+      berthSelector.addEventListener('change', () => {
+        drawChart(berthSelector.value, data);
+      });
+
+      function drawChart(selectedBerth, data) {
+        const berthIndex = data.berths.indexOf(selectedBerth);
+        const dataset = {
+          label: selectedBerth,
+          data: data.values.map(row => row[berthIndex]),
+          fill: false,
+          borderColor: `hsl(${(berthIndex * 50) % 360}, 70%, 50%)`,
+          backgroundColor: `hsl(${(berthIndex * 50) % 360}, 70%, 70%)`,
+          tension: 0.4
+        };
+
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: { labels: data.months, datasets: [dataset] },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: { y: { beginAtZero: true } }
           }
-        }
-      });
-    }
-  });
-  
-    // Average Berth Duration Chart
-    fetch('/api/average_berth_duration')
+        });
+      }
+    });
+}
+
+function fetchAvgBerthDuration(includeKAN3) {
+  fetch(`/api/average_berth_duration?includeKAN3=${includeKAN3}`)
     .then(response => response.json())
     .then(data => {
       const ctx = document.getElementById('avgBerthChart').getContext('2d');
+      
+      // ✅ Destroy existing chart
+      if (avgBerthChart) avgBerthChart.destroy();
 
-      new Chart(ctx, {
+      avgBerthChart = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: data.labels,  // Berth names
+          labels: data.labels,
           datasets: [{
             label: 'Average Berth Duration (Hours)',
-            data: data.values,   // Duration values
+            data: data.values,
             backgroundColor: 'rgba(54, 162, 235, 0.6)',
             borderColor: 'rgba(54, 162, 235, 1)',
             borderWidth: 1
@@ -819,117 +863,70 @@ fetch('/api/monthly_berth_usage')
           scales: {
             y: {
               beginAtZero: true,
-              title: {
-                display: true,
-                text: 'Hours'
-              }
+              title: { display: true, text: 'Hours' }
             },
             x: {
-              title: {
-                display: true,
-                text: 'Berths'
-              }
+              title: { display: true, text: 'Berths' }
             }
           }
         }
       });
-    })
-    .catch(error => console.error('Error loading average berth duration:', error));
-
-    let currentSection = 'port'; // default value
-
-    function toggleSection(type) {
-    const port = document.getElementById('portCharts');
-    const berth = document.getElementById('berthCharts');
-
-    const insightSidebar = document.getElementById('insight-sidebar');
-    const portInsight = document.getElementById('port-insight-content');
-    const berthInsight = document.getElementById('berth-insight-content');
-    const activeSectionSpan = document.getElementById('active-section');
-
-    if (type === 'port') {
-        port.style.display = 'block';
-        berth.style.display = 'none';
-
-        portInsight.style.display = 'block';
-        berthInsight.style.display = 'none';
-
-        if (activeSectionSpan) activeSectionSpan.innerText = 'Port';
-        currentSection = 'port';
-    } else if (type === 'berth') {
-        port.style.display = 'none';
-        berth.style.display = 'block';
-
-        portInsight.style.display = 'none';
-        berthInsight.style.display = 'block';
-
-        if (activeSectionSpan) activeSectionSpan.innerText = 'Berth';
-        currentSection = 'berth';
-    }
-
-    insightSidebar.style.display = 'block'; // Show sidebar always
+    });
 }
 
-fetch('/api/berth_downtime')
-  .then(response => response.json())
-  .then(data => {
-    const labels = data.map(item => item.BERTH_NAME);
-    const values = data.map(item => item.Days_Since_Last_Use);
+function fetchBerthDowntime(includeKAN3) {
+  fetch(`/api/berth_downtime?includeKAN3=${includeKAN3}`)
+    .then(response => response.json())
+    .then(data => {
+      const ctx = document.getElementById('berthDowntimeChart').getContext('2d');
+      const labels = data.map(item => item.BERTH_NAME);
+      const values = data.map(item => item.Days_Since_Last_Use);
+      
+      // ✅ Destroy existing chart
+      if (berthDowntimeChart) berthDowntimeChart.destroy();
 
-    const ctx = document.getElementById('berthDowntimeChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Days Since Last Use',
-          data: values,
-          backgroundColor: '#dc3545' // Bootstrap danger color
-        }]
-      },
-      options: {
-        indexAxis: 'y',  // Horizontal bar chart
-        responsive: true,
-        plugins: {
-          title: {
-            display: true,
-            text: 'Idle Time by Berth'
-          },
-          legend: {
-            display: false
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return `${context.parsed.x} days`;
+      berthDowntimeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Days Since Last Use',
+            data: values,
+            backgroundColor: '#dc3545'
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            title: { display: true, text: 'Idle Time by Berth' },
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: context => `${context.parsed.x} days`
               }
             }
-          }
-        },
-        scales: {
-          x: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Idle Days'
-            }
           },
-          y: {
-            title: {
-              display: true,
-              text: 'Berth'
+          scales: {
+            x: {
+              beginAtZero: true,
+              title: { display: true, text: 'Idle Days' }
+            },
+            y: {
+              title: { display: true, text: 'Berth' }
             }
           }
         }
-      }
+      });
     });
-  });
+}
 
-  // Populate dropdown with all berth names
-  fetch('/api/all_berths')
+function populateBerthDropdown(includeKAN3) {
+  fetch(`/api/all_berths?includeKAN3=${includeKAN3}`)
     .then(res => res.json())
     .then(berths => {
       const select = document.getElementById('berthSelect');
+      select.innerHTML = '';
       berths.forEach(berth => {
         const opt = document.createElement('option');
         opt.value = berth;
@@ -937,62 +934,58 @@ fetch('/api/berth_downtime')
         select.appendChild(opt);
       });
 
-      // Auto-select first berth and fetch data
       if (berths.length > 0) {
         select.value = berths[0];
         fetchShipTypes();
       }
     });
+}
 
-  // Fetch and display top 3 ship types for selected berth
-  let shipTypeChartInstance = null;  // Unique chart variable for this chart
+let shipTypeChartInstance = null;
 
-  function fetchShipTypes() {
-    const berth = document.getElementById('berthSelect').value;
+function fetchShipTypes() {
+  const berth = document.getElementById('berthSelect').value;
+  const includeKAN3 = getKAN3Toggle();
 
-    fetch(`/api/top_3_ship_types_by_berth?berth=${encodeURIComponent(berth)}`)
-      .then(res => res.json())
-      .then(data => {
-        const ctx = document.getElementById('shipTypeChart').getContext('2d');
+  fetch(`/api/top_3_ship_types_by_berth?berth=${encodeURIComponent(berth)}&includeKAN3=${includeKAN3}`)
+    .then(res => res.json())
+    .then(data => {
+      const ctx = document.getElementById('shipTypeChart').getContext('2d');
+      const labels = data.map(item => item.TYPE_NAME);
+      const values = data.map(item => item.Ship_Count);
 
-        const labels = data.map(item => item.TYPE_NAME);
-        const values = data.map(item => item.Ship_Count);
+      if (shipTypeChartInstance) shipTypeChartInstance.destroy();
 
-        // Destroy the existing chart for this component before drawing a new one
-        if (shipTypeChartInstance) {
-          shipTypeChartInstance.destroy();
-        }
-
-        shipTypeChartInstance = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Number of Ships',
-              data: values,
-              backgroundColor: ['#27aeef', '#ea5545', '#87bc45'],
-              borderRadius: 5
-            }]
+      shipTypeChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Number of Ships',
+            data: values,
+            backgroundColor: ['#27aeef', '#ea5545', '#87bc45'],
+            borderRadius: 5
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: true }
           },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            plugins: {
-              legend: { display: false },
-              tooltip: { enabled: true }
-            },
-            scales: {
-              x: {
-                beginAtZero: true,
-                ticks: {
-                  precision: 0
-                }
-              }
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: { precision: 0 }
             }
           }
-        });
+        }
       });
-  }
+    });
+}
+
+
  
 
 // function generateInsight() {

@@ -63,10 +63,108 @@
                 <div class="mb-3">
                   <button class="btn btn-primary mx-2" onclick="toggleSection('port')">Show Port Charts</button>
                   <button class="btn btn-danger mx-2" onclick="toggleSection('berth')">Show Berth Charts</button>
+                  <button class="btn btn-success mx-2" onclick="toggleSection('liveData')">Show Live Data</button>
                 </div>
                 
               </div>
 
+             <!-- *********************************************LIVE DATA UI SECTION ****************************************************** -->
+              <div id="liveDataCharts" style="display: none;">
+                <!-- Your live data charts or content go here -->
+            
+                <div id="live-insight-content">
+                  
+                    <div class="row mb-4 justify-content-center"> 
+                        <div class="col-xl-5 col-lg-6 mb-4">
+                            <div class="card border-0 shadow-sm stat-card h-100" style="border-left-color: #4e73df!important;">
+                                <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Ships In Last 48 hrs</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalShipsInLast48Hrs">--</div>
+                                    </div>
+                                    <div class="col-auto">
+                                    <i class="bi bi-ship fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-5 col-lg-6 mb-4">
+                            <div class="card border-0 shadow-sm stat-card h-100" style="border-left-color: #1cc88a!important;">
+                                <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Port Utilization In Last 48 HRS</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="portUtilizationLast48Hrs">--</div>
+                                    </div>
+                                    <div class="col-auto">
+                                    <i class="bi bi-percent fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Busy & Idle Berths Charts -->
+                    <!-- <div class="row mb-4">
+                        <div class="col-md-6">
+                        <div class="card shadow-sm p-3">
+                            <h6 class="text-primary">Busy Berths</h6>
+                            <canvas id="busyBerthsChart"></canvas>
+                        </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card shadow-sm p-3">
+                                <h6 class="text-danger">Idle Berths (1 hr)</h6>
+                                <canvas id="idleBerthsChart"></canvas>
+                            </div>
+                              
+
+                        </div>
+                    </div> -->
+
+                    <div class="row mb-4">
+                        <!-- Busy Berths -->
+                        <div class="col-md-6">
+                          <div class="card shadow-sm p-3">
+                            <h6 class="text-primary">Busy Berths</h6>
+                            <ul id="busyBerthList" class="list-group" style="max-height: 300px; overflow-y: auto;"></ul>
+                          </div>
+                        </div>
+                      
+                        <!-- Idle Berths -->
+                        <div class="col-md-6">
+                          <div class="card shadow-sm p-3">
+                            <h6 class="text-danger">Idle Berths (1+hr)</h6>
+                            <ul id="idleBerthList" class="list-group" style="max-height: 300px; overflow-y: auto;"></ul>
+                          </div>
+                        </div>
+                    </div>
+                      
+                    
+                    <!-- Dropdown + Ship Info Card -->
+                    <div class="row mt-4 justify-content-center">
+                        <div class="col-md-8">
+                        <label for="berthSelector"><strong>Select Busy Berth:</strong></label>
+                        <select id="berthSelector" class="form-control"></select>
+                        </div>
+                        <div class="col-md-6">
+                        <div id="berthDetails" class="card shadow-sm p-3 mt-3" style="min-height: 100px;">
+                            <p class="text-muted">Select a berth to see ship details.</p>
+                        </div>
+                        </div>
+                    </div>
+                    
+
+                   
+
+                </div>
+              </div>
+              
+            <!-- *********************************************LIVE DATA UI SECTION ENDS ****************************************************** -->
       
               <div id="portCharts">
                 <!-- Keep all PORT-related rows and canvases here -->
@@ -87,7 +185,7 @@
                         </div>
                         </div>
                     </div>
-                 </div>
+                    </div>
     
                 <div class="col-xl-3 col-md-6 mb-4">
                 <div class="card border-0 shadow-sm stat-card h-100" style="border-left-color: #1cc88a!important;">
@@ -242,11 +340,6 @@
       
       <div id="berthCharts" style="display: none;">
          <!-- Title -->
-         <div>
-          <label><strong>Include KAN3 Berth?</strong></label><br>
-          <label><input type="radio" name="kan3Toggle" value="yes" checked> Yes</label>
-          <label><input type="radio" name="kan3Toggle" value="no"> No</label>
-        </div>
         
         <div class="row">
           <div class="col-12 mb-3">
@@ -433,12 +526,152 @@
   <div id="berth-insight-content" style="display: none;">
       <p>No Berth insights yet. Click the button above to generate.</p>
   </div>
+
+  <div id="live-insight-content" style="display: none;">
+    <p>No Live Data insights yet. Click the button above to generate.</p>
+</div>
     <!-- <p>Insights from the model will appear here...</p> -->
 </div>
 </div>
 </div>
 
+<!-- LIVE DATA JS APIS -->
+<script>
+function fetchLiveDataSummary() {
+    fetch('/api/live_data_summary')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalShipsInLast48Hrs').innerText = data.ship_count;
+            document.getElementById('portUtilizationLast48Hrs').innerText = data.port_utilisation_last_48_hrs + " %";
+        })
+        .catch(error => {
+            console.error("Error fetching live data summary:", error);
+        });
+}
 
+function fetchBerthStatusSummary() {
+//   fetch('/api/berth_status_summary_live_data')
+//     .then(res => res.json())
+//     .then(data => {
+//       // Charts
+//       drawBarChart('busyBerthsChart', data.busy_berths, '#1cc88a');
+//       drawBarChart('idleBerthsChart', data.idle_berths, '#e74a3b');
+
+//       // Populate dropdown
+//       const selector = document.getElementById('berthSelector');
+//       selector.innerHTML = '<option disabled selected>Select Berth</option>';
+//       data.berth_ship_info.forEach(info => {
+//         const option = document.createElement('option');
+//         option.value = info.BERTH_NAME;
+//         option.textContent = info.BERTH_NAME;
+//         selector.appendChild(option);
+//       });
+
+//       // Show info card on selection
+//       selector.addEventListener('change', () => {
+//         const selected = selector.value;
+//         const berth = data.berth_ship_info.find(b => b.BERTH_NAME === selected);
+
+//         const detailsDiv = document.getElementById('berthDetails');
+//         if (berth) {
+//           detailsDiv.innerHTML = `
+//             <h6><strong>Ship at ${berth.BERTH_NAME}</strong></h6>
+//             <p><strong>Ship Name:</strong> ${berth.SHIPNAME}</p>
+//             <p><strong>Ship Type:</strong> ${berth.TYPE_NAME}</p>
+//           `;
+//         } else {
+//           detailsDiv.innerHTML = `<p class="text-muted">No data available for selected berth.</p>`;
+//         }
+//       });
+//     })
+//     .catch(err => console.error("Error loading berth status:", err));
+
+fetch('/api/berth_status_summary_live_data')
+  .then(res => res.json())
+  .then(data => {
+    const busyList = document.getElementById('busyBerthList');
+    const idleList = document.getElementById('idleBerthList');
+    const selector = document.getElementById('berthSelector');
+    const detailsDiv = document.getElementById('berthDetails');
+
+    busyList.innerHTML = '';
+    idleList.innerHTML = '';
+    selector.innerHTML = '<option disabled selected>Select Busy Berth</option>';
+    detailsDiv.innerHTML = `<p class="text-muted">Select a berth to see ship details.</p>`;
+
+    // Render busy berths list
+    data.busy_berths.forEach(berth => {
+      const li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between align-items-center';
+      li.innerHTML = `${berth} <span class="badge bg-success">Busy</span>`;
+      busyList.appendChild(li);
+    });
+
+    // Render idle berths list
+    data.idle_berths.forEach(berth => {
+      const li = document.createElement('li');
+      li.className = 'list-group-item d-flex justify-content-between align-items-center';
+      li.innerHTML = `${berth} <span class="badge bg-danger">Idle</span>`;
+      idleList.appendChild(li);
+    });
+
+    // Populate dropdown with only busy berths (from berth_ship_info)
+    const busyShipInfo = data.berth_ship_info.filter(b => data.busy_berths.includes(b.BERTH_NAME));
+    busyShipInfo.forEach(info => {
+      const option = document.createElement('option');
+      option.value = info.BERTH_NAME;
+      option.textContent = info.BERTH_NAME;
+      selector.appendChild(option);
+    });
+
+    // On dropdown change, show ship details
+    selector.addEventListener('change', () => {
+      const selected = selector.value;
+      const berth = data.berth_ship_info.find(b => b.BERTH_NAME === selected);
+
+      if (berth) {
+        detailsDiv.innerHTML = `
+          <p><strong>Berth Name:</strong> ${berth.BERTH_NAME}</p>
+          <p><strong>Ship ID:</strong> ${berth.SHIP_ID || 'N/A'}</p>
+          <p><strong>Ship Name:</strong> ${berth.SHIPNAME || 'N/A'}</p>
+          <p><strong>Ship Type:</strong> ${berth.TYPE_NAME || 'N/A'}</p>
+          <p><strong>Ship Dock Time:</strong> ${berth.DOCK_TIMESTAMP_UTC || 'N/A'}</p>
+        `;
+      } else {
+        detailsDiv.innerHTML = `<p class="text-muted">No data available for selected berth.</p>`;
+      }
+    });
+  })
+  .catch(err => console.error("Error loading berth status:", err));
+
+
+}
+
+function drawBarChart(canvasId, labels, color) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Berths',
+        data: labels.map(() => 1),
+        backgroundColor: color
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false }},
+      indexAxis: 'y',
+      scales: {
+        x: { display: false },
+        y: { ticks: { color: '#000' }}
+      }
+    }
+  });
+}
+</script>
+<!-- LIVE DATA JS APIS END --> 
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -449,21 +682,21 @@
   // Update last updated time
   document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
 
-  function generateInsight() {
-    fetch('/api/generate_insight', {stream: true})
-        .then(response => response.json())
-        .then(data => {
-            const converter = new showdown.Converter();
-            const htmlContent = converter.makeHtml(data.insight);
-            document.getElementById('insight-content').innerHTML = htmlContent;
-            document.getElementById('insight-sidebar').style.display = 'block';
-        })
-        .catch(error => {
-            document.getElementById('insight-content').innerText = "Error loading insight.";
-            document.getElementById('insight-sidebar').style.display = 'block';
-            console.error("Insight fetch error:", error);
-        });
-}
+//   function generateInsight() {
+//     fetch('/api/generate_insight', {stream: true})
+//         .then(response => response.json())
+//         .then(data => {
+//             const converter = new showdown.Converter();
+//             const htmlContent = converter.makeHtml(data.insight);
+//             document.getElementById('insight-content').innerHTML = htmlContent;
+//             document.getElementById('insight-sidebar').style.display = 'block';
+//         })
+//         .catch(error => {
+//             document.getElementById('insight-content').innerText = "Error loading insight.";
+//             document.getElementById('insight-sidebar').style.display = 'block';
+//             console.error("Insight fetch error:", error);
+//         });
+// }
  
 
     //NEW API FOR MONTHLY+FORECASTED SHIP CNTS
@@ -837,19 +1070,27 @@ fetch('/api/monthly_berth_usage')
     .catch(error => console.error('Error loading average berth duration:', error));
 
     let currentSection = 'port'; // default value
+    let liveDataLoaded=false;
 
+    // TOGGLE BUTTON FUNCTION 
     function toggleSection(type) {
     const port = document.getElementById('portCharts');
     const berth = document.getElementById('berthCharts');
+    const liveData= document.getElementById('liveDataCharts');
 
     const insightSidebar = document.getElementById('insight-sidebar');
     const portInsight = document.getElementById('port-insight-content');
     const berthInsight = document.getElementById('berth-insight-content');
+    const liveInsight=document.getElementById('live-insight-content');
+
     const activeSectionSpan = document.getElementById('active-section');
+    
 
     if (type === 'port') {
         port.style.display = 'block';
         berth.style.display = 'none';
+        liveData.style.display = 'none';
+        
 
         portInsight.style.display = 'block';
         berthInsight.style.display = 'none';
@@ -863,8 +1104,27 @@ fetch('/api/monthly_berth_usage')
         portInsight.style.display = 'none';
         berthInsight.style.display = 'block';
 
+        if(liveInsight) liveInsight.style.display = 'none';
+
         if (activeSectionSpan) activeSectionSpan.innerText = 'Berth';
         currentSection = 'berth';
+    }  else if (type === 'liveData') {
+        port.style.display = 'none';
+        berth.style.display = 'none';
+        liveData.style.display = 'block';
+
+        portInsight.style.display = 'none';
+        berthInsight.style.display = 'none';
+        if (liveInsight) liveInsight.style.display = 'block';
+
+        if (activeSectionSpan) activeSectionSpan.innerText = 'Live Data';
+        currentSection = 'liveData';
+
+        if(!liveDataLoaded){
+            fetchLiveDataSummary();
+            fetchBerthStatusSummary();
+            liveDataLoaded=true;
+        }
     }
 
     insightSidebar.style.display = 'block'; // Show sidebar always
@@ -995,94 +1255,11 @@ fetch('/api/berth_downtime')
   }
  
 
-// function generateInsight() {
-//     const portInsight = document.getElementById('port-insight-content');
-//     const berthInsight = document.getElementById('berth-insight-content');
-//     const loader = document.getElementById('insight-loader');
-
-//     // Show the loader
-//     loader.style.display = 'block';
-
-//     // Clear previous insights
-//     if (currentSection === 'port') {
-//         portInsight.innerHTML = '';
-//         portInsight.style.display = 'block';
-//         berthInsight.style.display = 'none';
-//     } else {
-//         berthInsight.innerHTML = '';
-//         berthInsight.style.display = 'block';
-//         portInsight.style.display = 'none';
-//     }
-
-//     fetch('/api/generate_insight?section=' + currentSection)
-//         .then(response => response.json())
-//         .then(data => {
-//             if (currentSection === 'port') {
-//                 portInsight.innerHTML = `<p>${data.insight}</p>`;
-//             } else {
-//                 berthInsight.innerHTML = `<p>${data.insight}</p>`;
-//             }
-//         })
-//         .catch(error => {
-//             const errorMsg = `<p style="color:red;">Error generating insight.</p>`;
-//             if (currentSection === 'port') {
-//                 portInsight.innerHTML = errorMsg;
-//             } else {
-//                 berthInsight.innerHTML = errorMsg;
-//             }
-//             console.error("Error generating insight:", error);
-//         })
-//         .finally(() => {
-//             // Hide loader
-//             loader.style.display = 'none';
-//         });
-// }
-
-// MODIFIED GENERATE INSIGHT FUNCTION: (Always show the response in the section where the Generate Insight button was clicked, even if the user switches tabs before it completes.)
-
-// function generateInsight(){
-//   const portInsight= document.getElementById('port-insight-content');
-//   const berthInsight=document.getElementById('berth-insight-content');
-//   const loader=document.getElementById('insight-loader');
-
-//   const requestedSection=currentSection;
-
-//   loader.style.display='block';
-
-//   if(requestedSection==='port'){
-//     portInsight.innerHTML='';
-//   }
-//   else{
-//     berthInsight.innerHTML='';
-//   }
-
-//   fetch('/api/generate_insight?section='+requestedSection)
-//   .then(response=>response.json())
-//   .then(data=>{
-//     if(requestedSection==='port'){
-//       portInsight.innerHTML=`<p>${data.insight}</p>`;
-//     }
-//     else{
-//       berthInsight.innerHTML=`<p>${data.insight}</p>`;
-//     }
-//   })
-//   .catch(error => {
-//             const errorMsg = `<p style="color:red;">Error generating insight.</p>`;
-//             if (requestedSection === 'port') {
-//                 portInsight.innerHTML = errorMsg;
-//             } else {
-//                 berthInsight.innerHTML = errorMsg;
-//             }
-//             console.error("Error generating insight:", error);
-//         })
-//         .finally(() => {
-//             loader.style.display = 'none';
-//         });
-// }
-
 function generateInsight() {
     const portInsight = document.getElementById('port-insight-content');
     const berthInsight = document.getElementById('berth-insight-content');
+    const liveInsight = document.getElementById('live-insight-content');
+
     const loader = document.getElementById('insight-loader');
 
     const requestedSection = currentSection;
@@ -1093,10 +1270,20 @@ function generateInsight() {
         portInsight.innerHTML = '';
         portInsight.style.display = 'block';
         berthInsight.style.display = 'none';
-    } else {
+        liveInsight.style.display = 'none';
+    } 
+    else if(requestedSection === 'liveData') {
+        liveInsight.innerHTML = '';
+        liveInsight.style.display = 'block';
+        berthInsight.style.display = 'none';
+        portInsight.style.display = 'none';
+    }
+    else {
         berthInsight.innerHTML = '';
         berthInsight.style.display = 'block';
         portInsight.style.display = 'none';
+        liveInsight.style.display = 'none';
+
     }
 
     fetch('/api/generate_insight?section=' + requestedSection)
@@ -1119,7 +1306,13 @@ function generateInsight() {
 
                     if (requestedSection === 'port') {
                         portInsight.innerHTML = html;
-                    } else {
+                    } 
+
+                    else if(requestedSection === 'liveData') {
+                        liveInsight.innerHTML = html;
+                    }
+                    
+                    else {
                         berthInsight.innerHTML = html;
                     }
 

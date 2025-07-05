@@ -20,14 +20,17 @@ def load_port_data():
     df['MARKET'] = df['MARKET'].astype(str).str.strip() # If market column data has inconsistent spaces then strip spaces
     return df
 
-def load_berth_data():
+def load_berth_data(include_kan3=True):
     df=pd.read_csv(BERTH_CSV_FILE, on_bad_lines='skip')
     df.columns=df.columns.str.strip()
     df=df[df['PORT_NAME'].str.strip().str.upper()=='KANDLA']
 
-    # Remove KAN3 berth
+    
     df['BERTH_NAME']=df['BERTH_NAME'].astype(str).str.strip()
-    df=df[df['BERTH_NAME']!='KAN3']
+    
+    if not include_kan3:
+        df=df[df['BERTH_NAME']!='KAN3']
+
     # Parse both timestamps
     if 'DOCK_TIMESTAMP_UTC' in df.columns:
         df['DOCK_TIMESTAMP_UTC'] = pd.to_datetime(df['DOCK_TIMESTAMP_UTC'], errors='coerce')
@@ -38,7 +41,7 @@ def load_berth_data():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index2.html')
 
 
 
@@ -183,7 +186,8 @@ def market_distribution():
 # API for calculating berth usage of top 10 berths of Kandla Port
 @app.route('/api/berth_utilization')
 def berth_utilization():
-    df=load_berth_data()
+    include_kan3=request.args.get('includeKAN3','yes')=='yes'
+    df=load_berth_data(include_kan3=include_kan3)
     # df_2024= df[df['DOCK_TIMESTAMP_UTC'].dt.year == 2024]
     total_ships_2024=df['SHIP_ID'].count()
     berth_counts = df.groupby('BERTH_NAME')['SHIP_ID'].count()
@@ -193,11 +197,11 @@ def berth_utilization():
     result.columns = ['BERTH_NAME', 'Utilization (%)']
     return jsonify(result.to_dict(orient='records'))
 
-
 # API endpoint for total berth usage of top 10 berths at Kandla Port
 @app.route('/api/total_berth_usage')
 def total_berth_usage():
-    df = load_berth_data()
+    include_kan3 = request.args.get('includeKAN3', 'yes') == 'yes'
+    df = load_berth_data(include_kan3=include_kan3) 
     df.columns = df.columns.str.strip() 
     
     # Filter rows for Kandla port only (case insensitive, strip spaces)
@@ -214,10 +218,13 @@ def total_berth_usage():
     })
 
 
+
+
 # API endpoint for monthly berth usage trend
 @app.route('/api/monthly_berth_usage')
 def monthly_berth_usage():
-    df = load_berth_data()
+    include_kan3=request.args.get('includeKAN3','yes')=='yes'
+    df=load_berth_data(include_kan3=include_kan3)
     df.columns = df.columns.str.strip() 
     
     # Ensure DOCK_TIMESTAMP_UTC is datetime
@@ -233,7 +240,7 @@ def monthly_berth_usage():
     grouped = df.groupby(['DOCK_MONTH', 'BERTH_NAME'])['SHIP_ID'].count().unstack().fillna(0)
 
     # Find top 5 berths by total ship count
-    top_10_berths = grouped.sum(axis=0).sort_values(ascending=False).head(10).index.tolist()
+    top_10_berths = grouped.sum(axis=0).sort_values(ascending=False).index.tolist()
 
     # Filter the grouped DataFrame to include only top 5 berths
     grouped_top5 = grouped[top_10_berths]
@@ -247,7 +254,8 @@ def monthly_berth_usage():
 # Each berth average time for dock and undock
 @app.route('/api/average_berth_duration')
 def average_berth_duration():
-    df = load_berth_data()
+    include_kan3=request.args.get('includeKAN3','yes')=='yes'
+    df=load_berth_data(include_kan3=include_kan3)
     df.columns = df.columns.str.strip()
 
     # Clean and convert timestamps
@@ -273,7 +281,8 @@ def average_berth_duration():
 
 @app.route('/api/berth_downtime')
 def berth_downtime():
-    df = load_berth_data()
+    include_kan3=request.args.get('includeKAN3','yes')=='yes'
+    df=load_berth_data(include_kan3=include_kan3)
 
     # Convert timestamps
     df['DOCK_TIMESTAMP_UTC'] = pd.to_datetime(df['DOCK_TIMESTAMP_UTC'], errors='coerce')
@@ -294,7 +303,8 @@ def berth_downtime():
 # API end point to get each berth top ship types
 @app.route('/api/all_berths')
 def get_all_berths():
-    df = load_berth_data()
+    include_kan3=request.args.get('includeKAN3','yes')=='yes'
+    df=load_berth_data(include_kan3=include_kan3)
     berth_list = df['BERTH_NAME'].dropna().unique().tolist()
     return jsonify(sorted(berth_list))
 
@@ -304,7 +314,8 @@ def top_3_ship_types_by_berth():
     if not berth_name:
         return jsonify({'error': 'berth parameter is required'}), 400
 
-    df = load_berth_data()
+    include_kan3=request.args.get('includeKAN3','yes')=='yes'
+    df=load_berth_data(include_kan3=include_kan3)
     df_filtered = df[df['BERTH_NAME'] == berth_name]
 
     top_ship_types = (
